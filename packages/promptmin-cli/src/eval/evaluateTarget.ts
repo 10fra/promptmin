@@ -7,6 +7,7 @@ import { writeJsonlAppend } from "../util/jsonl.js";
 import { DiskCache, readCache, writeCache } from "../cache/diskCache.js";
 import path from "node:path";
 import fs from "node:fs/promises";
+import os from "node:os";
 import { writeFileAtomic, ensureDir } from "../util/fs.js";
 
 export type BudgetState = { maxRuns: number; startedAt: number; maxMillis: number; runsUsed: number };
@@ -43,7 +44,7 @@ export async function evaluateTarget(params: {
   promptHint: string;
   outDirAbs: string;
   targetSelector: string;
-  tracePath: string;
+  tracePath: string | null;
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
@@ -61,7 +62,11 @@ export async function evaluateTarget(params: {
   for (const test of tests) {
     if (target.mode === "test" && test.id !== target.id) continue;
 
-    const promptFile = params.promptFile ?? (await ensureCandidatePromptFile(params.outDirAbs, params.promptText));
+    const promptFile =
+      params.promptFile ??
+      (params.tracePath
+        ? await ensureCandidatePromptFile(params.outDirAbs, params.promptText)
+        : await ensureTempPromptFile(params.promptText));
     const evalOne = await evalTestStable({
       config,
       test,
@@ -240,6 +245,7 @@ function runnerKeyParts(runner: any): string {
       `max_output_tokens=${runner.max_output_tokens ?? 800}`,
       `timeout_ms=${runner.timeout_ms ?? 60000}`,
       `base_url=${runner.base_url ?? "https://api.openai.com/v1"}`,
+      `max_retries=${runner.max_retries ?? 2}`,
     ].join("\n");
   }
   return `unknown_runner=${String(runner.type)}`;
@@ -273,6 +279,13 @@ async function ensureCandidatePromptFile(outDirAbs: string, promptText: string):
     if (err?.code !== "ENOENT") throw err;
   }
   await writeFileAtomic(filePath, promptText);
+  return filePath;
+}
+
+async function ensureTempPromptFile(promptText: string): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "promptmin-candidate-"));
+  const filePath = path.join(dir, "prompt.prompt");
+  await fs.writeFile(filePath, promptText, "utf8");
   return filePath;
 }
 

@@ -12,7 +12,7 @@ export async function greedyMinimize(params: {
   chunks: Chunk[];
   outDirAbs: string;
   targetSelector: string;
-  tracePath: string;
+  tracePath: string | null;
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };

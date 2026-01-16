@@ -16,6 +16,7 @@ export async function writeReportMarkdown(params: {
     granularity: string;
     cache?: string;
     cacheDir?: string;
+    trace?: string;
   };
   config: PromptminConfig;
   configHash: string;
@@ -43,7 +44,7 @@ export async function writeReportMarkdown(params: {
     "",
     "## Command",
     "```bash",
-    `promptmin minimize --prompt ${params.args.promptPath} --config ${params.args.configPath} --out ${params.args.outDir} --target ${params.args.target} --budget-runs ${params.args.budgetRuns} --max-minutes ${params.args.maxMinutes} --strategy ${params.args.strategy || "ddmin"} --granularity ${params.args.granularity} --cache ${params.args.cache || "on"} --cache-dir ${params.args.cacheDir || ".promptmin/cache"}`,
+    `promptmin minimize --prompt ${params.args.promptPath} --config ${params.args.configPath} --out ${params.args.outDir} --target ${params.args.target} --budget-runs ${params.args.budgetRuns} --max-minutes ${params.args.maxMinutes} --strategy ${params.args.strategy || "ddmin"} --granularity ${params.args.granularity} --cache ${params.args.cache || "on"} --cache-dir ${params.args.cacheDir || ".promptmin/cache"}${params.args.trace === "off" ? " --no-trace-output" : ""}`,
     "```",
     "",
     "## Baseline",
@@ -58,7 +59,7 @@ export async function writeReportMarkdown(params: {
     "## Repro",
     `- baseline_prompt: \`baseline.prompt\` (hash: \`${params.baselineHash}\`)`,
     `- minimized_prompt: \`minimized.prompt\` (hash: \`${params.minimizedHash}\`)`,
-    `- trace: \`trace.jsonl\``,
+    ...(params.args.trace === "off" ? [] : [`- trace: \`trace.jsonl\``]),
     `- diff: \`diff.patch\``,
     `- meta: \`meta.json\``,
     "",

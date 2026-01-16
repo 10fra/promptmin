@@ -34,6 +34,7 @@ function helpText(): string {
     "  --max-minutes <int>            default: 20",
     "  --cache <on|off>               default: on",
     "  --cache-dir <dir>              default: .promptmin/cache",
+    "  --no-trace-output              disable trace.jsonl + candidate snapshots",
     "  --stability-mode <off|strict|kofn>      default: off",
     "  --stability-n <int>            default: 3",
     "  --stability-k <int>            default: 2",

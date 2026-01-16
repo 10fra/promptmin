@@ -23,6 +23,7 @@ type Args = {
   granularity: string;
   cache: "on" | "off";
   cacheDir: string;
+  trace: "on" | "off";
   stabilityMode: "off" | "strict" | "kofn";
   stabilityN: number;
   stabilityK: number;
@@ -53,8 +54,8 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
   const baselinePromptPath = path.join(outDirAbs, "baseline.prompt");
   await writeFileAtomic(baselinePromptPath, baselineText);
 
-  const tracePath = path.join(outDirAbs, "trace.jsonl");
-  await writeFileAtomic(tracePath, "");
+  const tracePath = args.trace === "off" ? null : path.join(outDirAbs, "trace.jsonl");
+  if (tracePath) await writeFileAtomic(tracePath, "");
 
   const startedAt = Date.now();
   const budget = createBudgetState({ maxRuns: args.budgetRuns, startedAt, maxMillis: args.maxMinutes * 60_000 });
@@ -239,6 +240,7 @@ function parseArgs(argv: string[]): Args {
     granularity: "blocks",
     cache: "on",
     cacheDir: ".promptmin/cache",
+    trace: "on",
     stabilityMode: "off",
     stabilityN: 3,
     stabilityK: 2,
@@ -259,6 +261,7 @@ function parseArgs(argv: string[]): Args {
     else if (token === "--granularity") args.granularity = argv[++i] || args.granularity;
     else if (token === "--cache") args.cache = parseCacheMode(argv[++i] || "");
     else if (token === "--cache-dir") args.cacheDir = argv[++i] || args.cacheDir;
+    else if (token === "--no-trace-output") args.trace = "off";
     else if (token === "--stability-mode") args.stabilityMode = parseStabilityMode(argv[++i] || "");
     else if (token === "--stability-n") args.stabilityN = Number(argv[++i] || args.stabilityN);
     else if (token === "--stability-k") args.stabilityK = Number(argv[++i] || args.stabilityK);
@@ -277,6 +280,7 @@ function parseArgs(argv: string[]): Args {
           "  --max-minutes <int>           default: 20",
           "  --cache <on|off>              default: on",
           "  --cache-dir <dir>             default: .promptmin/cache",
+          "  --no-trace-output              disable trace.jsonl + candidate snapshots",
           "  --stability-mode <off|strict|kofn>      default: off",
           "  --stability-n <int>            default: 3",
           "  --stability-k <int>            default: 2",
@@ -318,7 +322,7 @@ async function minimizeWithStrategy(params: {
   baselineEval: EvalResult;
   outDirAbs: string;
   targetSelector: string;
-  tracePath: string;
+  tracePath: string | null;
   budget: BudgetState;
   verbose: boolean;
   cache: { enabled: boolean; dirAbs: string };
@@ -458,7 +462,7 @@ async function writeMetaJson(params: {
       out_dir: params.args.outDir,
       baseline_prompt: "baseline.prompt",
       minimized_prompt: "minimized.prompt",
-      trace: "trace.jsonl",
+      trace: params.args.trace === "off" ? null : "trace.jsonl",
       diff: "diff.patch",
       meta: "meta.json",
       candidates_dir: "candidates",

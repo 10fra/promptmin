@@ -11,6 +11,7 @@ export type OpenAIResponsesRunnerConfig = {
   timeout_ms?: number;
   base_url?: string;
   api_key_env?: string;
+  max_retries?: number;
 };
 
 export type RunnerConfig = LocalCommandRunnerConfig | OpenAIResponsesRunnerConfig;
@@ -77,6 +78,7 @@ function normalizeConfig(config: unknown): PromptminConfig {
     const timeoutMs = (runner as any).timeout_ms;
     const baseUrl = (runner as any).base_url;
     const apiKeyEnv = (runner as any).api_key_env;
+    const maxRetries = (runner as any).max_retries;
     return {
       runner: {
         type: "openai_responses",
@@ -86,6 +88,7 @@ function normalizeConfig(config: unknown): PromptminConfig {
         timeout_ms: timeoutMs === undefined ? undefined : Number(timeoutMs),
         base_url: baseUrl === undefined ? undefined : String(baseUrl),
         api_key_env: apiKeyEnv === undefined ? undefined : String(apiKeyEnv),
+        max_retries: maxRetries === undefined ? undefined : Number(maxRetries),
       },
       tests: tests.map(normalizeTest),
       prompt: normalizePrompt(prompt),

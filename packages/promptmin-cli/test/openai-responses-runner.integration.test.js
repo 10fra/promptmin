@@ -168,3 +168,56 @@ test("openai_responses runner parses yaml-ish role blocks", async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("openai_responses runner retries 429", async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "promptmin-openai-retry-"));
+  const tracePath = path.join(tmp, "trace.jsonl");
+  const cacheDir = path.join(tmp, "cache");
+  await fs.writeFile(tracePath, "", "utf8");
+
+  let requestCount = 0;
+  const server = http.createServer((req, res) => {
+    requestCount++;
+    if (requestCount === 1) {
+      res.statusCode = 429;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: { message: "rate limited" } }));
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ output_text: "OK" }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  const baseUrl = `http://127.0.0.1:${port}/v1`;
+
+  process.env.OPENAI_API_KEY = "test-key";
+
+  const config = {
+    runner: { type: "openai_responses", model: "gpt-test", base_url: baseUrl, max_retries: 2 },
+    tests: [{ id: "t1", input: { user: "hi" }, assert: { type: "regex_match", pattern: "OK" } }],
+  };
+
+  const budget = createBudgetState({ maxRuns: 1, startedAt: Date.now(), maxMillis: 60_000 });
+  try {
+    const r = await evaluateTarget({
+      config,
+      promptText: "system prompt",
+      promptHint: "baseline",
+      outDirAbs: tmp,
+      targetSelector: "test:t1",
+      tracePath,
+      budget,
+      verbose: false,
+      cache: { enabled: true, dirAbs: cacheDir },
+      stability: { mode: "off" },
+    });
+    assert.equal(r.isFail, false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  assert.equal(requestCount, 2);
+});
