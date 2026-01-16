@@ -14,35 +14,47 @@ export async function ddminMinimize(params: {
   tracePath: string;
   budget: BudgetState;
   verbose: boolean;
+  cache?: { enabled: boolean; dirAbs: string };
 }): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number }> {
   let lastFailingText = params.chunks.map((c) => c.text).join("");
   let lastEval: EvalResult = params.baselineEval;
 
-  let reduced: Chunk[];
+  const removable = params.chunks
+    .map((c, idx) => (c.preserve ? null : idx))
+    .filter((x): x is number => typeof x === "number");
+  if (removable.length === 0) {
+    return { minimizedText: lastFailingText, finalEval: lastEval, exitCode: 0 };
+  }
+
   try {
-    reduced = await ddminReduce({
-      items: params.chunks,
-      minSize: 1,
-      isFail: async (candidateChunks) => {
-        const candidateText = candidateChunks.map((c) => c.text).join("");
+    await ddminReduce({
+      items: removable,
+      minSize: 0,
+      isFail: async (kept) => {
+        const keepSet = new Set(kept);
+        const candidateText = params.chunks
+          .filter((c, idx) => c.preserve || keepSet.has(idx))
+          .map((c) => c.text)
+          .join("");
         if (!candidateText.trim()) return false;
 
         const candidateEval = await evaluateTarget({
           config: params.config,
           promptText: candidateText,
-          promptHint: `ddmin:chunks=${candidateChunks.length}`,
+          promptHint: `ddmin:chunks=${kept.length}`,
           outDirAbs: params.outDirAbs,
           targetSelector: params.targetSelector,
           tracePath: params.tracePath,
           budget: params.budget,
           verbose: params.verbose,
+          cache: params.cache,
         });
 
         await writeJsonlAppend(params.tracePath, {
           at: new Date().toISOString(),
           kind: "candidate",
           strategy: "ddmin",
-          kept_chunks: candidateChunks.length,
+          kept_chunks: kept.length,
           prompt_hash: hashText(candidateText),
           is_fail: candidateEval.isFail,
         });

@@ -3,7 +3,7 @@ import { BudgetState, EvalResult, evaluateTarget } from "../eval/evaluateTarget.
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 
-export type Chunk = { id: string; text: string };
+export type Chunk = { id: string; text: string; preserve?: boolean };
 
 export async function greedyMinimize(params: {
   config: PromptminConfig;
@@ -15,6 +15,7 @@ export async function greedyMinimize(params: {
   tracePath: string;
   budget: BudgetState;
   verbose: boolean;
+  cache?: { enabled: boolean; dirAbs: string };
 }): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number }> {
   const { chunks } = params;
   let keep = chunks.map(() => true);
@@ -26,6 +27,7 @@ export async function greedyMinimize(params: {
     changed = false;
     for (let i = 0; i < chunks.length; i++) {
       if (!keep[i]) continue;
+      if (chunks[i].preserve) continue;
       const nextKeep = keep.slice();
       nextKeep[i] = false;
       const candidateText = chunks.filter((_, j) => nextKeep[j]).map((c) => c.text).join("");
@@ -42,6 +44,7 @@ export async function greedyMinimize(params: {
           tracePath: params.tracePath,
           budget: params.budget,
           verbose: params.verbose,
+          cache: params.cache,
         });
       } catch (err) {
         const message = String((err as any)?.message || err);

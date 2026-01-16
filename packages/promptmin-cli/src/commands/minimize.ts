@@ -20,6 +20,8 @@ type Args = {
   maxMinutes: number;
   strategy: "ddmin" | "greedy";
   granularity: string;
+  cache: "on" | "off";
+  cacheDir: string;
   verbose: boolean;
   json: boolean;
 };
@@ -47,6 +49,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
 
   const startedAt = Date.now();
   const budget = createBudgetState({ maxRuns: args.budgetRuns, startedAt, maxMillis: args.maxMinutes * 60_000 });
+  const cache = { enabled: args.cache !== "off", dirAbs: path.resolve(args.cacheDir) };
   let baselineEval: EvalResult;
   try {
     baselineEval = await evaluateTarget({
@@ -58,6 +61,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       tracePath,
       budget,
       verbose: args.verbose,
+      cache,
     });
   } catch (err) {
     return await handleFatalMinimizeError({ err, outDirAbs, args, config, baselineText, baselineHash, startedAt });
@@ -71,10 +75,12 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       baselineHash,
       baselineEval,
       finalEval: baselineEval,
+      baselineText,
       minimizedText: baselineText,
       minimizedHash: baselineHash,
       exitCode: 2,
       startedAt,
+      budgetUsed: budget.runsUsed,
     });
     return 2;
   }
@@ -90,6 +96,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       tracePath,
       budget,
       verbose: args.verbose,
+      cache,
       strategy: args.strategy,
       granularity: args.granularity,
     });
@@ -113,10 +120,12 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     baselineHash,
     baselineEval,
     finalEval: result.finalEval,
+    baselineText,
     minimizedText: result.minimizedText,
     minimizedHash: hashText(result.minimizedText),
     exitCode: result.exitCode,
     startedAt,
+    budgetUsed: budget.runsUsed,
   });
 
   if (args.json) {
@@ -149,6 +158,8 @@ function parseArgs(argv: string[]): Args {
     maxMinutes: 20,
     strategy: "ddmin",
     granularity: "blocks",
+    cache: "on",
+    cacheDir: ".promptmin/cache",
     verbose: false,
     json: false,
   };
@@ -163,6 +174,8 @@ function parseArgs(argv: string[]): Args {
     else if (token === "--max-minutes") args.maxMinutes = Number(argv[++i] || args.maxMinutes);
     else if (token === "--strategy") args.strategy = parseStrategy(argv[++i] || "");
     else if (token === "--granularity") args.granularity = argv[++i] || args.granularity;
+    else if (token === "--cache") args.cache = parseCacheMode(argv[++i] || "");
+    else if (token === "--cache-dir") args.cacheDir = argv[++i] || args.cacheDir;
     else if (token === "--verbose") args.verbose = true;
     else if (token === "--json") args.json = true;
     else if (token === "-h" || token === "--help") {
@@ -175,6 +188,8 @@ function parseArgs(argv: string[]): Args {
           "  --granularity <sections|blocks|lines>   default: blocks",
           "  --budget-runs <int>           default: 200",
           "  --max-minutes <int>           default: 20",
+          "  --cache <on|off>              default: on",
+          "  --cache-dir <dir>             default: .promptmin/cache",
           "  --target <suite:any|suite:all|test:<id>>",
           "",
         ].join("\n"),
@@ -194,6 +209,12 @@ function parseStrategy(s: string): Args["strategy"] {
   process.exit(1);
 }
 
+function parseCacheMode(s: string): Args["cache"] {
+  if (s === "on" || s === "off") return s;
+  process.stderr.write(`invalid --cache: ${s}\n`);
+  process.exit(1);
+}
+
 async function minimizeWithStrategy(params: {
   config: PromptminConfig;
   baselineText: string;
@@ -203,6 +224,7 @@ async function minimizeWithStrategy(params: {
   tracePath: string;
   budget: BudgetState;
   verbose: boolean;
+  cache: { enabled: boolean; dirAbs: string };
   strategy: Args["strategy"];
   granularity: string;
 }) {
@@ -218,6 +240,7 @@ async function minimizeWithStrategy(params: {
       tracePath: params.tracePath,
       budget: params.budget,
       verbose: params.verbose,
+      cache: params.cache,
     });
   }
 
@@ -235,6 +258,7 @@ async function minimizeWithStrategy(params: {
       tracePath: params.tracePath,
       budget: params.budget,
       verbose: params.verbose,
+      cache: params.cache,
     });
     currentText = minimized.minimizedText;
     currentEval = minimized.finalEval;
@@ -274,6 +298,7 @@ async function handleFatalMinimizeError(params: {
     baselineHash: params.baselineHash,
     baselineEval,
     finalEval: baselineEval,
+    baselineText: params.baselineText,
     minimizedText: params.baselineText,
     minimizedHash: params.baselineHash,
     exitCode,

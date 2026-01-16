@@ -14,17 +14,28 @@ export async function writeReportMarkdown(params: {
     maxMinutes: number;
     strategy?: string;
     granularity: string;
+    cache?: string;
+    cacheDir?: string;
   };
   config: PromptminConfig;
   baselineHash: string;
   baselineEval: EvalResult;
   finalEval: EvalResult;
+  baselineText: string;
   minimizedText: string;
   minimizedHash: string;
   exitCode: number;
   startedAt: number;
+  budgetUsed?: number;
 }): Promise<void> {
   const durationMs = Date.now() - params.startedAt;
+  const baselineChars = params.baselineText.length;
+  const minimizedChars = params.minimizedText.length;
+  const baselineLines = countLines(params.baselineText);
+  const minimizedLines = countLines(params.minimizedText);
+  const reducedChars = baselineChars - minimizedChars;
+  const reducedLines = baselineLines - minimizedLines;
+  const pct = baselineChars > 0 ? Math.round((reducedChars / baselineChars) * 100) : 0;
   const report = [
     "# promptmin report",
     "",
@@ -44,12 +55,19 @@ export async function writeReportMarkdown(params: {
     `- failing tests: ${formatFailing(params.finalEval)}`,
     "",
     "## Size",
-    `- chars: ${params.minimizedText.length}`,
-    `- lines: ${params.minimizedText.split(/\\n/).length}`,
+    `- baseline: ${baselineChars} chars, ${baselineLines} lines`,
+    `- minimized: ${minimizedChars} chars, ${minimizedLines} lines`,
+    `- reduced: ${reducedChars} chars (${pct}%), ${reducedLines} lines`,
+    "",
+    "## Budget",
+    `- runs_used: ${params.budgetUsed ?? "(unknown)"} / ${params.args.budgetRuns}`,
+    `- max_minutes: ${params.args.maxMinutes}`,
     "",
     "## Meta",
     `- runner: \`${params.config.runner.type}\``,
     `- exit code: \`${params.exitCode}\``,
+    `- cache: \`${params.args.cache || "on"}\``,
+    `- cache_dir: \`${params.args.cacheDir || ".promptmin/cache"}\``,
     `- duration_ms: ${durationMs}`,
     "",
   ].join("\n");
@@ -60,4 +78,11 @@ export async function writeReportMarkdown(params: {
 function formatFailing(evalResult: EvalResult): string {
   if (evalResult.failingTests.length === 0) return "`(none)`";
   return evalResult.failingTests.map((t) => `\`${t.id}\``).join(", ");
+}
+
+function countLines(text: string): number {
+  if (!text) return 0;
+  let count = 1;
+  for (let i = 0; i < text.length; i++) if (text[i] === "\n") count++;
+  return count;
 }

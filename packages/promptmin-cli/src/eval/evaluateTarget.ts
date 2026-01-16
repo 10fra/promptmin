@@ -3,6 +3,7 @@ import { runLocalCommand } from "../runner/runLocalCommand.js";
 import { assertOutput } from "./assertOutput.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
+import { DiskCache, readCache, writeCache } from "../cache/diskCache.js";
 
 export type BudgetState = { maxRuns: number; startedAt: number; maxMillis: number; runsUsed: number };
 
@@ -25,6 +26,7 @@ export async function evaluateTarget(params: {
   tracePath: string;
   budget: BudgetState;
   verbose: boolean;
+  cache?: { enabled: boolean; dirAbs: string };
 }): Promise<EvalResult> {
   const { config } = params;
   const tests = config.tests;
@@ -37,8 +39,13 @@ export async function evaluateTarget(params: {
     if (target.mode === "test" && test.id !== target.id) continue;
 
     runs++;
-    consumeRun(params.budget);
-    const evalOne = await evalTestOnce({ config, test, promptText: params.promptText });
+    const evalOne = await evalTestOnce({
+      config,
+      test,
+      promptText: params.promptText,
+      budget: params.budget,
+      cache: params.cache,
+    });
 
     await writeJsonlAppend(params.tracePath, {
       at: new Date().toISOString(),
@@ -48,6 +55,7 @@ export async function evaluateTarget(params: {
       test_id: test.id,
       ok: evalOne.ok,
       reason: evalOne.reason,
+      cache_hit: evalOne.cacheHit ?? null,
     });
 
     if (!evalOne.ok) failing.push({ id: test.id, reason: evalOne.reason });
@@ -66,21 +74,48 @@ export async function evaluateTarget(params: {
   return { isFail, failingTests: failing, totalRuns: runs };
 }
 
-async function evalTestOnce(params: { config: PromptminConfig; test: TestConfig; promptText: string }) {
+async function evalTestOnce(params: {
+  config: PromptminConfig;
+  test: TestConfig;
+  promptText: string;
+  budget: BudgetState;
+  cache?: { enabled: boolean; dirAbs: string };
+}): Promise<{ ok: boolean; reason: string; cacheHit?: boolean }> {
   const { config, test, promptText } = params;
 
   if (config.runner.type !== "local_command") {
     return { ok: false, reason: `unsupported runner.type: ${config.runner.type}` };
   }
 
-  const output = await runLocalCommand({
-    command: config.runner.command,
-    promptText,
-    test,
-  });
+  const cacheEnabled = params.cache?.enabled !== false;
+  const cache = params.cache?.dirAbs ? ({ dirAbs: params.cache.dirAbs } satisfies DiskCache) : null;
+  const cacheKey = hashText(
+    [
+      "runner=local_command",
+      `command=${config.runner.command.join("\u0000")}`,
+      `prompt=${hashText(promptText)}`,
+      `test_id=${test.id}`,
+      `test_input=${JSON.stringify(test.input)}`,
+      `test_assert=${JSON.stringify(test.assert)}`,
+    ].join("\n"),
+  );
+
+  if (cacheEnabled && cache) {
+    const cached = await readCache(cache, cacheKey);
+    if (cached !== null) {
+      const asserted = assertOutput({ output: cached, test });
+      return asserted.ok ? { ok: true, reason: "ok", cacheHit: true } : { ok: false, reason: asserted.reason, cacheHit: true };
+    }
+  }
+
+  consumeRun(params.budget);
+  const output = await runLocalCommand({ command: config.runner.command, promptText, test });
+  if (cacheEnabled && cache) await writeCache(cache, cacheKey, output);
 
   const asserted = assertOutput({ output, test });
-  return asserted.ok ? { ok: true, reason: "ok" } : { ok: false, reason: asserted.reason };
+  return asserted.ok
+    ? { ok: true, reason: "ok", cacheHit: false }
+    : { ok: false, reason: asserted.reason, cacheHit: false };
 }
 
 function parseTarget(selector: string):
