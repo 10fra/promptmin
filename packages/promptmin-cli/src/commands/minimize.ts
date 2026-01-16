@@ -80,6 +80,8 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       configHash,
       baselineHash,
       minimizedHash: baselineHash,
+      baselineEval,
+      finalEval: baselineEval,
       exitCode: 2,
       startedAt,
       budgetUsed: budget.runsUsed,
@@ -154,10 +156,13 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     configHash,
     baselineHash,
     minimizedHash: hashText(result.minimizedText),
+    baselineEval,
+    finalEval: result.finalEval,
     exitCode: result.exitCode,
     startedAt,
     budgetUsed: budget.runsUsed,
     runnerType: config.runner.type,
+    bestEffortReason: result.reason,
   });
 
   if (args.json) {
@@ -331,6 +336,8 @@ async function handleFatalMinimizeError(params: {
     configHash: "(unknown)",
     baselineHash: params.baselineHash,
     minimizedHash: params.baselineHash,
+    baselineEval,
+    finalEval: baselineEval,
     exitCode,
     startedAt: params.startedAt,
     budgetUsed: undefined,
@@ -362,11 +369,14 @@ async function writeMetaJson(params: {
   configHash: string;
   baselineHash: string;
   minimizedHash: string;
+  baselineEval: EvalResult;
+  finalEval: EvalResult;
   exitCode: number;
   startedAt: number;
   budgetUsed?: number;
   runnerType: string;
   fatalError?: string;
+  bestEffortReason?: string;
 }): Promise<void> {
   const metaPath = path.join(params.outDirAbs, "meta.json");
   const meta = {
@@ -402,11 +412,24 @@ async function writeMetaJson(params: {
       baseline_prompt: params.baselineHash,
       minimized_prompt: params.minimizedHash,
     },
+    target_result: {
+      baseline: {
+        is_fail: params.baselineEval.isFail,
+        failing_tests: params.baselineEval.failingTests,
+        total_runs: params.baselineEval.totalRuns,
+      },
+      final: {
+        is_fail: params.finalEval.isFail,
+        failing_tests: params.finalEval.failingTests,
+        total_runs: params.finalEval.totalRuns,
+      },
+    },
     budget: {
       runs_used: params.budgetUsed ?? null,
       max_runs: params.args.budgetRuns,
     },
     fatal_error: params.fatalError ?? null,
+    best_effort_reason: params.bestEffortReason ?? null,
   };
   await writeFileAtomic(metaPath, JSON.stringify(meta, null, 2) + "\n");
 }
