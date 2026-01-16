@@ -56,4 +56,4 @@ Promptmin: prompt minimizer (ddmin) + artifacts, for turning “this prompt fail
 - Report accuracy polish
   - distinguish “budget/time best-effort” vs “confirm-final did not reproduce”
   - include stability config in `meta.json`
-
+  - see `docs/ROADMAP.md` for full list
