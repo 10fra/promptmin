@@ -43,7 +43,7 @@ export async function writeReportMarkdown(params: {
     "",
     "## Command",
     "```bash",
-    `promptmin minimize --prompt ${params.args.promptPath} --config ${params.args.configPath} --out ${params.args.outDir} --target ${params.args.target} --budget-runs ${params.args.budgetRuns} --max-minutes ${params.args.maxMinutes} --strategy ${params.args.strategy || "ddmin"} --granularity ${params.args.granularity}`,
+    `promptmin minimize --prompt ${params.args.promptPath} --config ${params.args.configPath} --out ${params.args.outDir} --target ${params.args.target} --budget-runs ${params.args.budgetRuns} --max-minutes ${params.args.maxMinutes} --strategy ${params.args.strategy || "ddmin"} --granularity ${params.args.granularity} --cache ${params.args.cache || "on"} --cache-dir ${params.args.cacheDir || ".promptmin/cache"}`,
     "```",
     "",
     "## Baseline",
