@@ -83,7 +83,7 @@ export async function writeReportMarkdown(params: {
       ? [
           "",
           "## Best-so-far",
-          "- hit budget/time limit; result may not be minimal",
+          "- best-effort result; may not be minimal and/or may not reproduce",
           params.bestEffortReason ? `- reason: \`${params.bestEffortReason}\`` : "- reason: `(unknown)`",
         ]
       : []),
