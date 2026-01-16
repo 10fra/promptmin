@@ -51,6 +51,9 @@ export async function writeReportMarkdown(params: {
     `- failing: \`${params.baselineEval.isFail}\``,
     `- failing tests: ${formatFailing(params.baselineEval)}`,
     `- config_hash: \`${params.configHash}\``,
+    `- stability: ${formatStability(params.baselineEval)}`,
+    `- eval_runs: ${params.baselineEval.totalRuns}`,
+    ...formatTestStats(params.baselineEval).map((l) => `- ${l}`),
     "",
     "## Repro",
     `- baseline_prompt: \`baseline.prompt\` (hash: \`${params.baselineHash}\`)`,
@@ -63,6 +66,9 @@ export async function writeReportMarkdown(params: {
     `- hash: \`${params.minimizedHash}\``,
     `- failing: \`${params.finalEval.isFail}\``,
     `- failing tests: ${formatFailing(params.finalEval)}`,
+    `- stability: ${formatStability(params.finalEval)}`,
+    `- eval_runs: ${params.finalEval.totalRuns}`,
+    ...formatTestStats(params.finalEval).map((l) => `- ${l}`),
     "",
     "## Size",
     `- baseline: ${baselineChars} chars, ${baselineLines} lines`,
@@ -96,6 +102,22 @@ export async function writeReportMarkdown(params: {
 function formatFailing(evalResult: EvalResult): string {
   if (evalResult.failingTests.length === 0) return "`(none)`";
   return evalResult.failingTests.map((t) => `\`${t.id}\``).join(", ");
+}
+
+function formatStability(evalResult: EvalResult): string {
+  const s = evalResult.stability;
+  if (s.mode === "off") return "`off`";
+  if (s.mode === "strict") return `\`strict (n=${s.n})\``;
+  return `\`kofn (k=${s.k}, n=${s.n})\``;
+}
+
+function formatTestStats(evalResult: EvalResult): string[] {
+  const out: string[] = [];
+  const failing = evalResult.testResults.filter((t) => !t.ok);
+  const list = failing.length ? failing : evalResult.testResults.slice(0, 3);
+  for (const t of list) out.push(`test \`${t.id}\`: failures=${t.failures}/${t.trials}`);
+  if (failing.length === 0 && evalResult.testResults.length > 3) out.push(`(+${evalResult.testResults.length - 3} more tests)`);
+  return out;
 }
 
 function countLines(text: string): number {

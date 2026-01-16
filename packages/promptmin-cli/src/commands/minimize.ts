@@ -390,7 +390,14 @@ async function handleFatalMinimizeError(params: {
   const message = String((params.err as any)?.message || params.err);
   const exitCode = message.startsWith("budget exceeded") ? 3 : 4;
   const baselineEval =
-    params.baselineEval ?? ({ isFail: false, failingTests: [{ id: "(error)", reason: message }], totalRuns: 0 } as EvalResult);
+    params.baselineEval ??
+    ({
+      isFail: false,
+      failingTests: [{ id: "(error)", reason: message }],
+      totalRuns: 0,
+      stability: { mode: "off", n: 1, k: 1 },
+      testResults: [],
+    } as EvalResult);
 
   await writeMetaJson({
     outDirAbs: params.outDirAbs,

@@ -20,10 +20,20 @@ export type StabilityConfig =
   | { mode: "strict"; n: number }
   | { mode: "kofn"; n: number; k: number };
 
+export type TestEvalResult = {
+  id: string;
+  ok: boolean;
+  reason: string;
+  failures: number;
+  trials: number;
+};
+
 export type EvalResult = {
   isFail: boolean;
   failingTests: { id: string; reason: string }[];
   totalRuns: number;
+  stability: { mode: "off" | "strict" | "kofn"; n: number; k: number };
+  testResults: TestEvalResult[];
 };
 
 export async function evaluateTarget(params: {
@@ -46,6 +56,7 @@ export async function evaluateTarget(params: {
 
   const failing: { id: string; reason: string }[] = [];
   let runs = 0;
+  const testResults: TestEvalResult[] = [];
 
   for (const test of tests) {
     if (target.mode === "test" && test.id !== target.id) continue;
@@ -61,6 +72,7 @@ export async function evaluateTarget(params: {
       stability,
     });
     runs += evalOne.trials;
+    testResults.push({ id: test.id, ok: evalOne.ok, reason: evalOne.reason, failures: evalOne.failures, trials: evalOne.trials });
 
     await writeJsonlAppend(params.tracePath, {
       at: new Date().toISOString(),
@@ -90,7 +102,7 @@ export async function evaluateTarget(params: {
         ? failing.some((t) => t.id === target.id)
         : failing.length > 0;
 
-  return { isFail, failingTests: failing, totalRuns: runs };
+  return { isFail, failingTests: failing, totalRuns: runs, stability, testResults };
 }
 
 async function evalTestOnce(params: {
