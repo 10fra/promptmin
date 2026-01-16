@@ -15,7 +15,7 @@ export async function ddminMinimize(params: {
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
-}): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number }> {
+}): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number; reason?: string }> {
   let lastFailingText = params.chunks.map((c) => c.text).join("");
   let lastEval: EvalResult = params.baselineEval;
 
@@ -70,7 +70,7 @@ export async function ddminMinimize(params: {
   } catch (err) {
     const message = String((err as any)?.message || err);
     if (message.startsWith("budget exceeded")) {
-      return { minimizedText: lastFailingText, finalEval: lastEval, exitCode: 3 };
+      return { minimizedText: lastFailingText, finalEval: lastEval, exitCode: 3, reason: message };
     }
     throw err;
   }

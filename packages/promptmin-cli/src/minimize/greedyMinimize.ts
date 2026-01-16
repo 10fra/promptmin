@@ -16,7 +16,7 @@ export async function greedyMinimize(params: {
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
-}): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number }> {
+}): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number; reason?: string }> {
   const { chunks } = params;
   let keep = chunks.map(() => true);
   let currentText = chunks.filter((_, i) => keep[i]).map((c) => c.text).join("");
@@ -49,7 +49,7 @@ export async function greedyMinimize(params: {
       } catch (err) {
         const message = String((err as any)?.message || err);
         if (message.startsWith("budget exceeded")) {
-          return { minimizedText: currentText, finalEval: currentEval, exitCode: 3 };
+          return { minimizedText: currentText, finalEval: currentEval, exitCode: 3, reason: message };
         }
         throw err;
       }

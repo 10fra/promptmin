@@ -26,6 +26,8 @@ type Args = {
   json: boolean;
 };
 
+type MinimizeResult = { minimizedText: string; finalEval: EvalResult; exitCode: number; reason?: string };
+
 export async function minimizeCommand(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   if (!args.promptPath || !args.configPath) {
@@ -86,7 +88,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     return 2;
   }
 
-  let result: { minimizedText: string; finalEval: EvalResult; exitCode: number };
+  let result: MinimizeResult;
   try {
     result = await minimizeWithStrategy({
       config,
@@ -127,6 +129,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     exitCode: result.exitCode,
     startedAt,
     budgetUsed: budget.runsUsed,
+    bestEffortReason: result.reason,
   });
 
   if (args.json) {
@@ -138,6 +141,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
           baseline: baselineEval,
           final: result.finalEval,
           exitCode: result.exitCode,
+          reason: result.reason ?? null,
           minimized_prompt_path: minimizedPath,
         },
         null,
@@ -228,7 +232,7 @@ async function minimizeWithStrategy(params: {
   cache: { enabled: boolean; dirAbs: string };
   strategy: Args["strategy"];
   granularity: string;
-}) {
+}): Promise<MinimizeResult> {
   if (params.strategy === "greedy") {
     const chunks = chunkPrompt(params.baselineText, params.granularity, { preserve: params.config.prompt?.preserve });
     return await greedyMinimize({

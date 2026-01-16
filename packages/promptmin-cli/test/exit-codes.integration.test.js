@@ -93,6 +93,8 @@ test("exit 3 when budget exceeded during minimization (best-so-far)", async () =
   assert.equal(res.status, 3);
   await fs.access(path.join(outDir, "report.md"));
   await fs.access(path.join(outDir, "minimized.prompt"));
+  const report = await fs.readFile(path.join(outDir, "report.md"), "utf8");
+  assert.match(report, /## Best-so-far/);
 });
 
 test("exit 4 on runner error", async () => {
@@ -129,4 +131,3 @@ test("exit 4 on runner error", async () => {
   assert.equal(res.status, 4);
   await fs.access(path.join(outDir, "report.md"));
 });
-

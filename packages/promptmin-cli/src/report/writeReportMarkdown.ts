@@ -27,6 +27,7 @@ export async function writeReportMarkdown(params: {
   exitCode: number;
   startedAt: number;
   budgetUsed?: number;
+  bestEffortReason?: string;
 }): Promise<void> {
   const durationMs = Date.now() - params.startedAt;
   const baselineChars = params.baselineText.length;
@@ -62,6 +63,14 @@ export async function writeReportMarkdown(params: {
     "## Budget",
     `- runs_used: ${params.budgetUsed ?? "(unknown)"} / ${params.args.budgetRuns}`,
     `- max_minutes: ${params.args.maxMinutes}`,
+    ...(params.exitCode === 3
+      ? [
+          "",
+          "## Best-so-far",
+          "- hit budget/time limit; result may not be minimal",
+          params.bestEffortReason ? `- reason: \`${params.bestEffortReason}\`` : "- reason: `(unknown)`",
+        ]
+      : []),
     "",
     "## Meta",
     `- runner: \`${params.config.runner.type}\``,
