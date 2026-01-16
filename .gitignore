@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+.promptmin/
+*.log
+__pycache__/
+.venv/
+.python-version
+
