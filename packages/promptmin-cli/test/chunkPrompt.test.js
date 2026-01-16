@@ -18,3 +18,18 @@ test("chunkPrompt sections ignore headings in code fences", () => {
   const chunks = chunkPrompt("```md\n# not a heading\n```\n\n# real\nx\n", "sections");
   assert.equal(chunks.length, 2);
 });
+
+test("chunkPrompt honors config preserve heading selector", () => {
+  const chunks = chunkPrompt("# Safety\nx\n\n# Other\ny\n", "sections", {
+    preserve: [{ type: "heading", value: "Safety" }],
+  });
+  assert.equal(Boolean(chunks[0]?.preserve), true);
+  assert.equal(Boolean(chunks[1]?.preserve), false);
+});
+
+test("chunkPrompt honors config preserve regex selector", () => {
+  const chunks = chunkPrompt("a\n\nSECRET=1\n\nb\n", "blocks", {
+    preserve: [{ type: "regex", pattern: "SECRET=\\d+" }],
+  });
+  assert.equal(chunks.some((c) => c.preserve), true);
+});

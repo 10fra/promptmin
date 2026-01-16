@@ -16,9 +16,17 @@ export type TestConfig = {
   assert: AssertConfig;
 };
 
+export type PreserveSelector =
+  | { type: "heading"; value: string }
+  | { type: "tag"; value: string }
+  | { type: "regex"; pattern: string };
+
 export type PromptminConfig = {
   runner: RunnerConfig;
   tests: TestConfig[];
+  prompt?: {
+    preserve?: PreserveSelector[];
+  };
 };
 
 export async function loadConfig(configPath: string): Promise<PromptminConfig> {
@@ -32,6 +40,7 @@ function normalizeConfig(config: unknown): PromptminConfig {
   if (!config || typeof config !== "object") throw new Error("config must be an object");
   const runner = (config as any).runner;
   const tests = (config as any).tests;
+  const prompt = (config as any).prompt;
   if (!runner || typeof runner !== "object") throw new Error("config.runner required");
   if (!Array.isArray(tests)) throw new Error("config.tests must be an array");
 
@@ -44,6 +53,7 @@ function normalizeConfig(config: unknown): PromptminConfig {
     return {
       runner: { type: "local_command", command },
       tests: tests.map(normalizeTest),
+      prompt: normalizePrompt(prompt),
     };
   }
 
@@ -67,4 +77,20 @@ function normalizeAssert(a: any): AssertConfig {
     return { type, pattern: String(a.pattern || "") } as any;
   if (type === "json_schema") return { type, schema: a.schema };
   throw new Error(`unsupported assert.type: ${type}`);
+}
+
+function normalizePrompt(p: any): PromptminConfig["prompt"] | undefined {
+  if (!p) return undefined;
+  if (typeof p !== "object") throw new Error("config.prompt must be an object");
+  const preserve = Array.isArray(p.preserve) ? p.preserve.map(normalizePreserveSelector) : undefined;
+  return { preserve: preserve?.filter(Boolean) as PreserveSelector[] | undefined };
+}
+
+function normalizePreserveSelector(x: any): PreserveSelector {
+  if (!x || typeof x !== "object") throw new Error("prompt.preserve entries must be objects");
+  const type = String(x.type || "");
+  if (type === "heading") return { type, value: String(x.value || "") };
+  if (type === "tag") return { type, value: String(x.value || "") };
+  if (type === "regex") return { type, pattern: String(x.pattern || "") };
+  throw new Error(`unsupported preserve selector type: ${type}`);
 }

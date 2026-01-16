@@ -1,11 +1,17 @@
 import { Chunk } from "../minimize/greedyMinimize.js";
 import { hashText } from "../util/hash.js";
+import { PreserveSelector } from "../config/loadConfig.js";
 
-export function chunkPrompt(promptText: string, granularity: string): Chunk[] {
+export function chunkPrompt(
+  promptText: string,
+  granularity: string,
+  options?: { preserve?: PreserveSelector[] },
+): Chunk[] {
   const g = granularity || "blocks";
-  if (g === "lines") return chunkLines(promptText);
-  if (g === "sections") return chunkMarkdownSections(promptText);
-  return chunkMarkdownBlocks(promptText);
+  const preserve = options?.preserve || [];
+  if (g === "lines") return applyPreserve(chunkLines(promptText), preserve, "lines");
+  if (g === "sections") return applyPreserve(chunkMarkdownSections(promptText), preserve, "sections");
+  return applyPreserve(chunkMarkdownBlocks(promptText), preserve, "blocks");
 }
 
 function chunkLines(text: string): Chunk[] {
@@ -190,4 +196,54 @@ function parseFenceMarker(lineNoEnd: string): { marker: "```" | "~~~" } | null {
 
 function hasKeepTag(text: string): boolean {
   return /<!--\s*promptmin:keep\s*-->/m.test(text) || /^\s*#\s*keep\s*$/m.test(text);
+}
+
+function applyPreserve(chunks: Chunk[], selectors: PreserveSelector[], level: "sections" | "blocks" | "lines"): Chunk[] {
+  if (!selectors.length) return chunks;
+
+  for (const sel of selectors) {
+    if (sel.type === "tag") {
+      if (sel.value === "keep") {
+        for (const c of chunks) if (hasKeepTag(c.text)) c.preserve = true;
+      }
+      continue;
+    }
+
+    if (sel.type === "regex") {
+      const re = new RegExp(sel.pattern, "m");
+      for (const c of chunks) if (re.test(c.text)) c.preserve = true;
+      continue;
+    }
+
+    if (sel.type === "heading") {
+      for (const c of chunks) {
+        const heading = extractHeadingValue(c.text, level);
+        if (heading && heading === sel.value) c.preserve = true;
+      }
+      continue;
+    }
+  }
+
+  return chunks;
+}
+
+function extractHeadingValue(text: string, level: "sections" | "blocks" | "lines"): string | null {
+  const firstLine = firstNonBlankLine(text);
+  if (!firstLine) return null;
+  const m = firstLine.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+  if (!m) return null;
+  const value = m[1].trim();
+  if (!value) return null;
+  if (level === "lines") return value;
+  if (level === "blocks" || level === "sections") return value;
+  return value;
+}
+
+function firstNonBlankLine(text: string): string | null {
+  const lines = text.split("\n");
+  for (const l of lines) {
+    if (/^\s*$/.test(l)) continue;
+    return l;
+  }
+  return null;
 }

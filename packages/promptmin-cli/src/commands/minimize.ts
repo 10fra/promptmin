@@ -230,7 +230,7 @@ async function minimizeWithStrategy(params: {
   granularity: string;
 }) {
   if (params.strategy === "greedy") {
-    const chunks = chunkPrompt(params.baselineText, params.granularity);
+    const chunks = chunkPrompt(params.baselineText, params.granularity, { preserve: params.config.prompt?.preserve });
     return await greedyMinimize({
       config: params.config,
       baselineText: params.baselineText,
@@ -249,7 +249,7 @@ async function minimizeWithStrategy(params: {
   let currentEval = params.baselineEval;
 
   for (const level of levelsUpTo(params.granularity)) {
-    const chunks = chunkPrompt(currentText, level);
+    const chunks = chunkPrompt(currentText, level, { preserve: params.config.prompt?.preserve });
     const minimized = await ddminMinimize({
       config: params.config,
       baselineEval: currentEval,

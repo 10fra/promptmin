@@ -69,3 +69,58 @@ test("preserve tag survives minimization (ddmin)", async () => {
   assert.match(minimized, /\bKEEP_ME\b/);
 });
 
+test("config preserve heading survives minimization (ddmin)", async () => {
+  const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const repoRoot = path.resolve(pkgDir, "..", "..");
+  const cliPath = path.join(pkgDir, "dist", "cli.js");
+
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "promptmin-preserve-heading-"));
+  const promptPath = path.join(tmp, "prompt.md");
+  const configPath = path.join(tmp, "config.json");
+  const outDir = path.join(tmp, "out");
+
+  await fs.writeFile(promptPath, ["# Safety", "keep this heading", "", "BAD_TOKEN", ""].join("\n"), "utf8");
+
+  const python = ["import os; p=os.environ.get('PROMPT_TEXT','');", "print('BAD' if 'BAD_TOKEN' in p else 'OK')"].join(" ");
+
+  await fs.writeFile(
+    configPath,
+    JSON.stringify(
+      {
+        runner: { type: "local_command", command: ["python3", "-c", python] },
+        prompt: { preserve: [{ type: "heading", value: "Safety" }] },
+        tests: [{ id: "t1", input: {}, assert: { type: "regex_not_match", pattern: "BAD" } }],
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const res = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      "minimize",
+      "--prompt",
+      promptPath,
+      "--config",
+      configPath,
+      "--out",
+      outDir,
+      "--target",
+      "test:t1",
+      "--strategy",
+      "ddmin",
+      "--cache",
+      "off",
+      "--granularity",
+      "blocks",
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+  assert.equal(res.status, 0);
+
+  const minimized = await fs.readFile(path.join(outDir, "minimized.prompt"), "utf8");
+  assert.match(minimized, /^# Safety/m);
+});
