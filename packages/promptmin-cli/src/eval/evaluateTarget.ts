@@ -43,11 +43,12 @@ export async function evaluateTarget(params: {
     if (target.mode === "test" && test.id !== target.id) continue;
 
     runs++;
+    const promptFile = params.promptFile ?? (await ensureCandidatePromptFile(params.outDirAbs, params.promptText));
     const evalOne = await evalTestOnce({
       config,
       test,
       promptText: params.promptText,
-      promptFile: params.promptFile ?? (await ensureCandidatePromptFile(params.outDirAbs, params.promptText)),
+      promptFile,
       budget: params.budget,
       cache: params.cache,
     });
@@ -56,6 +57,7 @@ export async function evaluateTarget(params: {
       at: new Date().toISOString(),
       kind: "eval",
       prompt_hash: hashText(params.promptText),
+      prompt_file: promptFile,
       prompt_hint: params.promptHint,
       test_id: test.id,
       ok: evalOne.ok,
