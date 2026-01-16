@@ -18,6 +18,7 @@ export async function writeReportMarkdown(params: {
     cacheDir?: string;
   };
   config: PromptminConfig;
+  configHash: string;
   baselineHash: string;
   baselineEval: EvalResult;
   finalEval: EvalResult;
@@ -49,6 +50,7 @@ export async function writeReportMarkdown(params: {
     `- hash: \`${params.baselineHash}\``,
     `- failing: \`${params.baselineEval.isFail}\``,
     `- failing tests: ${formatFailing(params.baselineEval)}`,
+    `- config_hash: \`${params.configHash}\``,
     "",
     "## Final",
     `- hash: \`${params.minimizedHash}\``,

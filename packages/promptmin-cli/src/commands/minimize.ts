@@ -10,6 +10,7 @@ import { PromptminConfig } from "../config/loadConfig.js";
 import { chunkPrompt } from "../prompt/chunkPrompt.js";
 import { writeReportMarkdown } from "../report/writeReportMarkdown.js";
 import { writeDiffPatch } from "../report/writeDiffPatch.js";
+import fs from "node:fs/promises";
 
 type Args = {
   promptPath: string;
@@ -40,6 +41,8 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
   await ensureDir(path.join(outDirAbs, "candidates"));
 
   const config = await loadConfig(args.configPath);
+  const configRaw = await fs.readFile(path.resolve(args.configPath), "utf8");
+  const configHash = hashText(configRaw);
   const baselineText = await readPromptText(args.promptPath);
   const baselineHash = hashText(baselineText);
 
@@ -75,6 +78,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       outDirAbs,
       args,
       config,
+      configHash,
       baselineHash,
       baselineEval,
       finalEval: baselineEval,
@@ -120,6 +124,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     outDirAbs,
     args,
     config,
+    configHash,
     baselineHash,
     baselineEval,
     finalEval: result.finalEval,
@@ -301,6 +306,7 @@ async function handleFatalMinimizeError(params: {
     outDirAbs: params.outDirAbs,
     args: params.args,
     config: params.config,
+    configHash: "(unknown)",
     baselineHash: params.baselineHash,
     baselineEval,
     finalEval: baselineEval,
