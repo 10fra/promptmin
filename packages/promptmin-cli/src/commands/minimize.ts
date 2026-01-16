@@ -375,6 +375,16 @@ async function writeMetaJson(params: {
     platform: process.platform,
     runner: params.runnerType,
     exit_code: params.exitCode,
+    paths: {
+      out_dir: params.args.outDir,
+      baseline_prompt: "baseline.prompt",
+      minimized_prompt: "minimized.prompt",
+      trace: "trace.jsonl",
+      diff: "diff.patch",
+      meta: "meta.json",
+      candidates_dir: "candidates",
+      cache_dir: params.args.cacheDir,
+    },
     args: {
       prompt: params.args.promptPath,
       config: params.args.configPath,

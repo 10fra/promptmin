@@ -51,6 +51,9 @@ test("exit 2 when baseline does not fail", async () => {
   assert.equal(res.status, 2);
   await fs.access(path.join(outDir, "report.md"));
   await fs.access(path.join(outDir, "meta.json"));
+  const meta = JSON.parse(await fs.readFile(path.join(outDir, "meta.json"), "utf8"));
+  assert.equal(meta.exit_code, 2);
+  assert.equal(meta.paths.baseline_prompt, "baseline.prompt");
 });
 
 test("exit 3 when budget exceeded during minimization (best-so-far)", async () => {
@@ -97,6 +100,9 @@ test("exit 3 when budget exceeded during minimization (best-so-far)", async () =
   await fs.access(path.join(outDir, "meta.json"));
   const report = await fs.readFile(path.join(outDir, "report.md"), "utf8");
   assert.match(report, /## Best-so-far/);
+  const meta = JSON.parse(await fs.readFile(path.join(outDir, "meta.json"), "utf8"));
+  assert.equal(meta.exit_code, 3);
+  assert.equal(meta.paths.candidates_dir, "candidates");
 });
 
 test("exit 4 on runner error", async () => {
@@ -133,4 +139,7 @@ test("exit 4 on runner error", async () => {
   assert.equal(res.status, 4);
   await fs.access(path.join(outDir, "report.md"));
   await fs.access(path.join(outDir, "meta.json"));
+  const meta = JSON.parse(await fs.readFile(path.join(outDir, "meta.json"), "utf8"));
+  assert.equal(meta.exit_code, 4);
+  assert.ok(meta.fatal_error);
 });

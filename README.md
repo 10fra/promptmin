@@ -17,6 +17,14 @@ node packages/promptmin-cli/dist/cli.js minimize \
 
 Artifacts land in `.promptmin/out/`.
 
+## local_command runner contract
+
+When `runner.type = "local_command"`, promptmin runs your command once per test and provides:
+- `PROMPT_FILE`: path to a prompt snapshot file (baseline: `baseline.prompt`, candidates: `out/candidates/<sha>.prompt`)
+- `PROMPT_TEXT`: full prompt text
+- `TEST_JSON`: full test object JSON (includes `id`, `input`, `assert`)
+- `TEST_ID`: test id
+
 ## Python wrapper (dev)
 
 ```bash
