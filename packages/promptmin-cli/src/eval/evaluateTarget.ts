@@ -4,6 +4,9 @@ import { assertOutput } from "./assertOutput.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 import { DiskCache, readCache, writeCache } from "../cache/diskCache.js";
+import path from "node:path";
+import fs from "node:fs/promises";
+import { writeFileAtomic, ensureDir } from "../util/fs.js";
 
 export type BudgetState = { maxRuns: number; startedAt: number; maxMillis: number; runsUsed: number };
 
@@ -44,6 +47,7 @@ export async function evaluateTarget(params: {
       config,
       test,
       promptText: params.promptText,
+      promptFile: params.promptFile ?? (await ensureCandidatePromptFile(params.outDirAbs, params.promptText)),
       budget: params.budget,
       cache: params.cache,
     });
@@ -135,4 +139,18 @@ function consumeRun(budget: BudgetState) {
   if (Date.now() - budget.startedAt > budget.maxMillis) throw new Error(`budget exceeded: maxMinutes`);
   budget.runsUsed++;
   if (budget.runsUsed > budget.maxRuns) throw new Error(`budget exceeded: maxRuns=${budget.maxRuns}`);
+}
+
+async function ensureCandidatePromptFile(outDirAbs: string, promptText: string): Promise<string> {
+  const dir = path.join(outDirAbs, "candidates");
+  await ensureDir(dir);
+  const filePath = path.join(dir, `${hashText(promptText)}.prompt`);
+  try {
+    await fs.access(filePath);
+    return filePath;
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
+  }
+  await writeFileAtomic(filePath, promptText);
+  return filePath;
 }

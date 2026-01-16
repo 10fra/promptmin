@@ -1,8 +1,5 @@
 import { spawn } from "node:child_process";
 import { TestConfig } from "../config/loadConfig.js";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 
 export async function runLocalCommand(params: {
   command: string[];
@@ -13,7 +10,8 @@ export async function runLocalCommand(params: {
   const [cmd, ...args] = params.command;
   if (!cmd) throw new Error("runner.command empty");
 
-  const promptFile = await resolvePromptFile(params.promptText, params.promptFile);
+  const promptFile = params.promptFile;
+  if (!promptFile) throw new Error("missing promptFile");
 
   return await new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
@@ -37,12 +35,4 @@ export async function runLocalCommand(params: {
       reject(new Error(`runner exit ${code}: ${stderr || stdout}`));
     });
   });
-}
-
-async function resolvePromptFile(promptText: string, existing?: string): Promise<string> {
-  if (existing) return existing;
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "promptmin-prompt-"));
-  const filePath = path.join(dir, "prompt.txt");
-  await fs.writeFile(filePath, promptText, "utf8");
-  return filePath;
 }
