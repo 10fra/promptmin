@@ -13,6 +13,5 @@ npm install -g promptmin
 Then install the Python wrapper:
 
 ```bash
-pip install promptmin
+pip install promptmin  # once published to PyPI
 ```
-
