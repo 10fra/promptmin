@@ -91,6 +91,8 @@ test("exit 3 when budget exceeded during minimization (best-so-far)", async () =
       "blocks",
       "--budget-runs",
       "1",
+      "--stability-mode",
+      "off",
       "--cache",
       "off",
     ],

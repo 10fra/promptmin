@@ -6,6 +6,8 @@ export async function runLocalCommand(params: {
   promptText: string;
   promptFile?: string;
   test: TestConfig;
+  trialIndex?: number;
+  trialCount?: number;
 }): Promise<string> {
   const [cmd, ...args] = params.command;
   if (!cmd) throw new Error("runner.command empty");
@@ -22,6 +24,8 @@ export async function runLocalCommand(params: {
         PROMPT_TEXT: params.promptText,
         TEST_JSON: JSON.stringify(params.test),
         TEST_ID: params.test.id,
+        PROMPTMIN_TRIAL_INDEX: String(params.trialIndex ?? 0),
+        PROMPTMIN_TRIAL_COUNT: String(params.trialCount ?? 1),
       },
     });
 

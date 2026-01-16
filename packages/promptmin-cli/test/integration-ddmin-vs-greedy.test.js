@@ -18,7 +18,19 @@ test("ddmin beats greedy on non-monotonic fixture", async () => {
   const outGreedy = path.join(tmp, "greedy");
   const outDdmin = path.join(tmp, "ddmin");
 
-  const common = ["minimize", "--prompt", promptPath, "--config", configPath, "--target", "test:parity_odd_01", "--cache", "off"];
+  const common = [
+    "minimize",
+    "--prompt",
+    promptPath,
+    "--config",
+    configPath,
+    "--target",
+    "test:parity_odd_01",
+    "--cache",
+    "off",
+    "--stability-mode",
+    "off",
+  ];
 
   const greedy = spawnSync(process.execPath, [cliPath, ...common, "--out", outGreedy, "--strategy", "greedy"], {
     cwd: repoRoot,

@@ -14,6 +14,11 @@ export function createBudgetState(params: { maxRuns: number; startedAt: number; 
   return { ...params, runsUsed: 0 };
 }
 
+export type StabilityConfig =
+  | { mode: "off" }
+  | { mode: "strict"; n: number }
+  | { mode: "kofn"; n: number; k: number };
+
 export type EvalResult = {
   isFail: boolean;
   failingTests: { id: string; reason: string }[];
@@ -31,10 +36,12 @@ export async function evaluateTarget(params: {
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
+  stability?: StabilityConfig;
 }): Promise<EvalResult> {
   const { config } = params;
   const tests = config.tests;
   const target = parseTarget(params.targetSelector);
+  const stability = normalizeStability(params.stability);
 
   const failing: { id: string; reason: string }[] = [];
   let runs = 0;
@@ -42,16 +49,17 @@ export async function evaluateTarget(params: {
   for (const test of tests) {
     if (target.mode === "test" && test.id !== target.id) continue;
 
-    runs++;
     const promptFile = params.promptFile ?? (await ensureCandidatePromptFile(params.outDirAbs, params.promptText));
-    const evalOne = await evalTestOnce({
+    const evalOne = await evalTestStable({
       config,
       test,
       promptText: params.promptText,
       promptFile,
       budget: params.budget,
       cache: params.cache,
+      stability,
     });
+    runs += evalOne.trials;
 
     await writeJsonlAppend(params.tracePath, {
       at: new Date().toISOString(),
@@ -63,6 +71,9 @@ export async function evaluateTarget(params: {
       ok: evalOne.ok,
       reason: evalOne.reason,
       cache_hit: evalOne.cacheHit ?? null,
+      stability: { mode: stability.mode, n: stability.n, k: stability.k },
+      failures: evalOne.failures,
+      trials: evalOne.trials,
     });
 
     if (!evalOne.ok) failing.push({ id: test.id, reason: evalOne.reason });
@@ -86,6 +97,8 @@ async function evalTestOnce(params: {
   test: TestConfig;
   promptText: string;
   promptFile?: string;
+  trialIndex: number;
+  stability: { mode: "off" | "strict" | "kofn"; n: number; k: number };
   budget: BudgetState;
   cache?: { enabled: boolean; dirAbs: string };
 }): Promise<{ ok: boolean; reason: string; cacheHit?: boolean }> {
@@ -105,6 +118,10 @@ async function evalTestOnce(params: {
       `test_id=${test.id}`,
       `test_input=${JSON.stringify(test.input)}`,
       `test_assert=${JSON.stringify(test.assert)}`,
+      `stability_mode=${params.stability.mode}`,
+      `stability_n=${params.stability.n}`,
+      `stability_k=${params.stability.k}`,
+      `trial_index=${params.trialIndex}`,
     ].join("\n"),
   );
 
@@ -117,13 +134,61 @@ async function evalTestOnce(params: {
   }
 
   consumeRun(params.budget);
-  const output = await runLocalCommand({ command: config.runner.command, promptText, promptFile: params.promptFile, test });
+  const output = await runLocalCommand({
+    command: config.runner.command,
+    promptText,
+    promptFile: params.promptFile,
+    test,
+    trialIndex: params.trialIndex,
+    trialCount: params.stability.n,
+  });
   if (cacheEnabled && cache) await writeCache(cache, cacheKey, output);
 
   const asserted = assertOutput({ output, test });
   return asserted.ok
     ? { ok: true, reason: "ok", cacheHit: false }
     : { ok: false, reason: asserted.reason, cacheHit: false };
+}
+
+async function evalTestStable(params: {
+  config: PromptminConfig;
+  test: TestConfig;
+  promptText: string;
+  promptFile: string;
+  budget: BudgetState;
+  cache?: { enabled: boolean; dirAbs: string };
+  stability: { mode: "off" | "strict" | "kofn"; n: number; k: number };
+}): Promise<{ ok: boolean; reason: string; failures: number; trials: number; cacheHit?: boolean }> {
+  const { stability } = params;
+  const trials = stability.n;
+  let failures = 0;
+  let anyCacheHit = true;
+  let firstFailureReason: string | null = null;
+
+  for (let i = 0; i < trials; i++) {
+    const one = await evalTestOnce({
+      config: params.config,
+      test: params.test,
+      promptText: params.promptText,
+      promptFile: params.promptFile,
+      trialIndex: i,
+      stability,
+      budget: params.budget,
+      cache: params.cache,
+    });
+    if (one.cacheHit === false) anyCacheHit = false;
+    if (!one.ok) {
+      failures++;
+      if (!firstFailureReason) firstFailureReason = one.reason;
+    }
+  }
+
+  const isFail =
+    stability.mode === "strict" ? failures === trials : stability.mode === "kofn" ? failures >= stability.k : failures >= 1;
+  const ok = !isFail;
+  const reasonBase = firstFailureReason || "ok";
+  const reason = `${reasonBase} (failures=${failures}/${trials}, mode=${stability.mode}${stability.mode === "kofn" ? ` k=${stability.k}` : ""})`;
+  return { ok, reason, failures, trials, cacheHit: trials > 0 ? anyCacheHit : undefined };
 }
 
 function parseTarget(selector: string):
@@ -155,4 +220,25 @@ async function ensureCandidatePromptFile(outDirAbs: string, promptText: string):
   }
   await writeFileAtomic(filePath, promptText);
   return filePath;
+}
+
+function normalizeStability(stability?: StabilityConfig): { mode: "off" | "strict" | "kofn"; n: number; k: number } {
+  if (!stability || stability.mode === "off") return { mode: "off", n: 1, k: 1 };
+  if (stability.mode === "strict") {
+    const n = clampInt(stability.n, 1, 1000);
+    return { mode: "strict", n, k: n };
+  }
+  if (stability.mode === "kofn") {
+    const n = clampInt(stability.n, 1, 1000);
+    const k = clampInt(stability.k, 1, n);
+    return { mode: "kofn", n, k };
+  }
+  return { mode: "off", n: 1, k: 1 };
+}
+
+function clampInt(x: number, min: number, max: number): number {
+  const n = Number.isFinite(x) ? Math.floor(x) : min;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
 }

@@ -3,7 +3,7 @@ import { loadConfig } from "../config/loadConfig.js";
 import { readPromptText } from "../prompt/readPromptText.js";
 import { ensureDir, writeFileAtomic } from "../util/fs.js";
 import { hashText } from "../util/hash.js";
-import { createBudgetState, EvalResult, evaluateTarget, BudgetState } from "../eval/evaluateTarget.js";
+import { createBudgetState, EvalResult, evaluateTarget, BudgetState, StabilityConfig } from "../eval/evaluateTarget.js";
 import { greedyMinimize } from "../minimize/greedyMinimize.js";
 import { ddminMinimize } from "../minimize/ddminMinimize.js";
 import { PromptminConfig } from "../config/loadConfig.js";
@@ -23,6 +23,10 @@ type Args = {
   granularity: string;
   cache: "on" | "off";
   cacheDir: string;
+  stabilityMode: "off" | "strict" | "kofn";
+  stabilityN: number;
+  stabilityK: number;
+  confirmFinal: boolean;
   verbose: boolean;
   json: boolean;
 };
@@ -55,21 +59,28 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
   const startedAt = Date.now();
   const budget = createBudgetState({ maxRuns: args.budgetRuns, startedAt, maxMillis: args.maxMinutes * 60_000 });
   const cache = { enabled: args.cache !== "off", dirAbs: path.resolve(args.cacheDir) };
+  const stability: StabilityConfig =
+    args.stabilityMode === "off"
+      ? { mode: "off" }
+      : args.stabilityMode === "strict"
+        ? { mode: "strict", n: args.stabilityN }
+        : { mode: "kofn", n: args.stabilityN, k: args.stabilityK };
   let baselineEval: EvalResult;
-	try {
-	  baselineEval = await evaluateTarget({
-	    config,
-	    promptText: baselineText,
-	    promptFile: baselinePromptPath,
-	    promptHint: "baseline",
-	    outDirAbs,
-	    targetSelector: args.target,
-	    tracePath,
-	    budget,
-	    verbose: args.verbose,
-	    cache,
-	  });
-	} catch (err) {
+  try {
+    baselineEval = await evaluateTarget({
+      config,
+      promptText: baselineText,
+      promptFile: baselinePromptPath,
+      promptHint: "baseline",
+      outDirAbs,
+      targetSelector: args.target,
+      tracePath,
+      budget,
+      verbose: args.verbose,
+      cache,
+      stability,
+    });
+  } catch (err) {
     return await handleFatalMinimizeError({ err, outDirAbs, args, config, baselineText, baselineHash, startedAt });
   }
 
@@ -117,6 +128,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       budget,
       verbose: args.verbose,
       cache,
+      stability,
       strategy: args.strategy,
       granularity: args.granularity,
     });
@@ -126,6 +138,35 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
 
   const minimizedPath = path.join(outDirAbs, "minimized.prompt");
   await writeFileAtomic(minimizedPath, result.minimizedText);
+
+  let finalEval = result.finalEval;
+  let exitCode = result.exitCode;
+  let reason = result.reason;
+  if (args.confirmFinal && exitCode === 0) {
+    try {
+      const confirmEval = await evaluateTarget({
+        config,
+        promptText: result.minimizedText,
+        promptHint: "confirm-final",
+        outDirAbs,
+        targetSelector: args.target,
+        tracePath,
+        budget,
+        verbose: args.verbose,
+        cache,
+        stability: { mode: "strict", n: Math.max(5, args.stabilityMode === "off" ? 1 : args.stabilityN) },
+      });
+      finalEval = confirmEval;
+      if (!confirmEval.isFail) {
+        exitCode = 3;
+        reason = "confirm-final failed";
+      }
+    } catch (err: any) {
+      const message = String(err?.message || err);
+      exitCode = message.startsWith("budget exceeded") ? 3 : 4;
+      reason = message;
+    }
+  }
 
   await writeDiffPatch({
     outDirAbs,
@@ -140,14 +181,14 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     configHash,
     baselineHash,
     baselineEval,
-    finalEval: result.finalEval,
+    finalEval,
     baselineText,
     minimizedText: result.minimizedText,
     minimizedHash: hashText(result.minimizedText),
-    exitCode: result.exitCode,
+    exitCode,
     startedAt,
     budgetUsed: budget.runsUsed,
-    bestEffortReason: result.reason,
+    bestEffortReason: reason,
   });
 
   await writeMetaJson({
@@ -157,12 +198,12 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     baselineHash,
     minimizedHash: hashText(result.minimizedText),
     baselineEval,
-    finalEval: result.finalEval,
-    exitCode: result.exitCode,
+    finalEval,
+    exitCode,
     startedAt,
     budgetUsed: budget.runsUsed,
     runnerType: config.runner.type,
-    bestEffortReason: result.reason,
+    bestEffortReason: reason,
   });
 
   if (args.json) {
@@ -172,9 +213,9 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
       JSON.stringify(
         {
           baseline: baselineEval,
-          final: result.finalEval,
-          exitCode: result.exitCode,
-          reason: result.reason ?? null,
+          final: finalEval,
+          exitCode,
+          reason: reason ?? null,
           minimized_prompt_path: minimizedPath,
         },
         null,
@@ -183,7 +224,7 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     );
   }
 
-  return result.exitCode;
+  return exitCode;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -198,6 +239,10 @@ function parseArgs(argv: string[]): Args {
     granularity: "blocks",
     cache: "on",
     cacheDir: ".promptmin/cache",
+    stabilityMode: "off",
+    stabilityN: 3,
+    stabilityK: 2,
+    confirmFinal: false,
     verbose: false,
     json: false,
   };
@@ -214,6 +259,10 @@ function parseArgs(argv: string[]): Args {
     else if (token === "--granularity") args.granularity = argv[++i] || args.granularity;
     else if (token === "--cache") args.cache = parseCacheMode(argv[++i] || "");
     else if (token === "--cache-dir") args.cacheDir = argv[++i] || args.cacheDir;
+    else if (token === "--stability-mode") args.stabilityMode = parseStabilityMode(argv[++i] || "");
+    else if (token === "--stability-n") args.stabilityN = Number(argv[++i] || args.stabilityN);
+    else if (token === "--stability-k") args.stabilityK = Number(argv[++i] || args.stabilityK);
+    else if (token === "--confirm-final") args.confirmFinal = true;
     else if (token === "--verbose") args.verbose = true;
     else if (token === "--json") args.json = true;
     else if (token === "-h" || token === "--help") {
@@ -228,6 +277,10 @@ function parseArgs(argv: string[]): Args {
           "  --max-minutes <int>           default: 20",
           "  --cache <on|off>              default: on",
           "  --cache-dir <dir>             default: .promptmin/cache",
+          "  --stability-mode <off|strict|kofn>      default: off",
+          "  --stability-n <int>            default: 3",
+          "  --stability-k <int>            default: 2",
+          "  --confirm-final                default: off",
           "  --target <suite:any|suite:all|test:<id>>",
           "",
         ].join("\n"),
@@ -253,6 +306,12 @@ function parseCacheMode(s: string): Args["cache"] {
   process.exit(1);
 }
 
+function parseStabilityMode(s: string): Args["stabilityMode"] {
+  if (s === "off" || s === "strict" || s === "kofn") return s;
+  process.stderr.write(`invalid --stability-mode: ${s}\n`);
+  process.exit(1);
+}
+
 async function minimizeWithStrategy(params: {
   config: PromptminConfig;
   baselineText: string;
@@ -263,6 +322,7 @@ async function minimizeWithStrategy(params: {
   budget: BudgetState;
   verbose: boolean;
   cache: { enabled: boolean; dirAbs: string };
+  stability: StabilityConfig;
   strategy: Args["strategy"];
   granularity: string;
 }): Promise<MinimizeResult> {
@@ -279,6 +339,7 @@ async function minimizeWithStrategy(params: {
       budget: params.budget,
       verbose: params.verbose,
       cache: params.cache,
+      stability: params.stability,
     });
   }
 
@@ -297,6 +358,7 @@ async function minimizeWithStrategy(params: {
       budget: params.budget,
       verbose: params.verbose,
       cache: params.cache,
+      stability: params.stability,
     });
     currentText = minimized.minimizedText;
     currentEval = minimized.finalEval;

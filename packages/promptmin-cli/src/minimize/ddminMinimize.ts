@@ -1,5 +1,5 @@
 import { PromptminConfig } from "../config/loadConfig.js";
-import { BudgetState, EvalResult, evaluateTarget } from "../eval/evaluateTarget.js";
+import { BudgetState, EvalResult, evaluateTarget, StabilityConfig } from "../eval/evaluateTarget.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 import { Chunk } from "./greedyMinimize.js";
@@ -15,6 +15,7 @@ export async function ddminMinimize(params: {
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
+  stability?: StabilityConfig;
 }): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number; reason?: string }> {
   let lastFailingText = params.chunks.map((c) => c.text).join("");
   let lastEval: EvalResult = params.baselineEval;
@@ -48,6 +49,7 @@ export async function ddminMinimize(params: {
           budget: params.budget,
           verbose: params.verbose,
           cache: params.cache,
+          stability: params.stability,
         });
 
         await writeJsonlAppend(params.tracePath, {

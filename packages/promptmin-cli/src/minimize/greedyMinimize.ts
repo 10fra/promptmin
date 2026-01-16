@@ -1,5 +1,5 @@
 import { PromptminConfig } from "../config/loadConfig.js";
-import { BudgetState, EvalResult, evaluateTarget } from "../eval/evaluateTarget.js";
+import { BudgetState, EvalResult, evaluateTarget, StabilityConfig } from "../eval/evaluateTarget.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 
@@ -16,6 +16,7 @@ export async function greedyMinimize(params: {
   budget: BudgetState;
   verbose: boolean;
   cache?: { enabled: boolean; dirAbs: string };
+  stability?: StabilityConfig;
 }): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number; reason?: string }> {
   const { chunks } = params;
   let keep = chunks.map(() => true);
@@ -45,6 +46,7 @@ export async function greedyMinimize(params: {
           budget: params.budget,
           verbose: params.verbose,
           cache: params.cache,
+          stability: params.stability,
         });
       } catch (err) {
         const message = String((err as any)?.message || err);
