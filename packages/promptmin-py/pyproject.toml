@@ -4,21 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptmin"
-version = "1.0.1"
-description = "Prompt Minimizer Python wrapper (shells out to Node CLI)"
+version = "1.0.2"
+description = "Prompt minimizer for LLM evals — shrink prompts to minimal failing inputs using delta debugging"
 requires-python = ">=3.9"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Chris Gruber" }]
+authors = []
 keywords = ["prompt", "llm", "eval", "ddmin", "delta-debugging", "debugging", "testing"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Testing",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Operating System :: OS Independent"
 ]
 
 [project.urls]
 Homepage = "https://github.com/10fra/promptmin"
+Repository = "https://github.com/10fra/promptmin"
+Issues = "https://github.com/10fra/promptmin/issues"
 
 [project.scripts]
 promptmin-py = "promptmin.cli:main"
