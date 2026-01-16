@@ -20,6 +20,7 @@ export type EvalResult = {
 export async function evaluateTarget(params: {
   config: PromptminConfig;
   promptText: string;
+  promptFile?: string;
   promptHint: string;
   outDirAbs: string;
   targetSelector: string;
@@ -78,6 +79,7 @@ async function evalTestOnce(params: {
   config: PromptminConfig;
   test: TestConfig;
   promptText: string;
+  promptFile?: string;
   budget: BudgetState;
   cache?: { enabled: boolean; dirAbs: string };
 }): Promise<{ ok: boolean; reason: string; cacheHit?: boolean }> {
@@ -109,7 +111,7 @@ async function evalTestOnce(params: {
   }
 
   consumeRun(params.budget);
-  const output = await runLocalCommand({ command: config.runner.command, promptText, test });
+  const output = await runLocalCommand({ command: config.runner.command, promptText, promptFile: params.promptFile, test });
   if (cacheEnabled && cache) await writeCache(cache, cacheKey, output);
 
   const asserted = assertOutput({ output, test });

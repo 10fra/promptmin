@@ -51,19 +51,20 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
   const budget = createBudgetState({ maxRuns: args.budgetRuns, startedAt, maxMillis: args.maxMinutes * 60_000 });
   const cache = { enabled: args.cache !== "off", dirAbs: path.resolve(args.cacheDir) };
   let baselineEval: EvalResult;
-  try {
-    baselineEval = await evaluateTarget({
-      config,
-      promptText: baselineText,
-      promptHint: "baseline",
-      outDirAbs,
-      targetSelector: args.target,
-      tracePath,
-      budget,
-      verbose: args.verbose,
-      cache,
-    });
-  } catch (err) {
+	try {
+	  baselineEval = await evaluateTarget({
+	    config,
+	    promptText: baselineText,
+	    promptFile: baselinePromptPath,
+	    promptHint: "baseline",
+	    outDirAbs,
+	    targetSelector: args.target,
+	    tracePath,
+	    budget,
+	    verbose: args.verbose,
+	    cache,
+	  });
+	} catch (err) {
     return await handleFatalMinimizeError({ err, outDirAbs, args, config, baselineText, baselineHash, startedAt });
   }
 
