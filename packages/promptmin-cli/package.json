@@ -1,6 +1,7 @@
 {
   "name": "promptmin",
   "version": "1.0.1",
+  "license": "MIT",
   "private": false,
   "type": "module",
   "bin": {
