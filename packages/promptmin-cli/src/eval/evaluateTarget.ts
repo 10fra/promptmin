@@ -4,7 +4,11 @@ import { assertOutput } from "./assertOutput.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 
-export type Budget = { maxRuns: number; startedAt: number; maxMillis: number };
+export type BudgetState = { maxRuns: number; startedAt: number; maxMillis: number; runsUsed: number };
+
+export function createBudgetState(params: { maxRuns: number; startedAt: number; maxMillis: number }): BudgetState {
+  return { ...params, runsUsed: 0 };
+}
 
 export type EvalResult = {
   isFail: boolean;
@@ -19,7 +23,7 @@ export async function evaluateTarget(params: {
   outDirAbs: string;
   targetSelector: string;
   tracePath: string;
-  budget: Budget;
+  budget: BudgetState;
   verbose: boolean;
 }): Promise<EvalResult> {
   const { config } = params;
@@ -33,7 +37,7 @@ export async function evaluateTarget(params: {
     if (target.mode === "test" && test.id !== target.id) continue;
 
     runs++;
-    enforceBudget(params.budget, runs);
+    consumeRun(params.budget);
     const evalOne = await evalTestOnce({ config, test, promptText: params.promptText });
 
     await writeJsonlAppend(params.tracePath, {
@@ -90,8 +94,8 @@ function parseTarget(selector: string):
   throw new Error(`invalid --target: ${selector}`);
 }
 
-function enforceBudget(budget: Budget, runsSoFar: number) {
-  if (runsSoFar > budget.maxRuns) throw new Error(`budget exceeded: maxRuns=${budget.maxRuns}`);
+function consumeRun(budget: BudgetState) {
   if (Date.now() - budget.startedAt > budget.maxMillis) throw new Error(`budget exceeded: maxMinutes`);
+  budget.runsUsed++;
+  if (budget.runsUsed > budget.maxRuns) throw new Error(`budget exceeded: maxRuns=${budget.maxRuns}`);
 }
-

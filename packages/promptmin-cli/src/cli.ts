@@ -23,7 +23,7 @@ function helpText(): string {
     "promptmin",
     "",
     "Commands:",
-    "  promptmin minimize --prompt <path> --config <path> [--out <dir>]",
+    "  promptmin minimize --prompt <path> --config <path> [--out <dir>] [--strategy ddmin|greedy]",
     "",
   ].join("\n");
 }
@@ -32,4 +32,3 @@ main().catch((err) => {
   process.stderr.write(String(err?.stack || err) + "\n");
   process.exit(1);
 });
-

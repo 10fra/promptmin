@@ -1,5 +1,5 @@
 import { PromptminConfig } from "../config/loadConfig.js";
-import { Budget, EvalResult, evaluateTarget } from "../eval/evaluateTarget.js";
+import { BudgetState, EvalResult, evaluateTarget } from "../eval/evaluateTarget.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
 
@@ -13,7 +13,7 @@ export async function greedyMinimize(params: {
   outDirAbs: string;
   targetSelector: string;
   tracePath: string;
-  budget: Budget;
+  budget: BudgetState;
   verbose: boolean;
 }): Promise<{ minimizedText: string; finalEval: EvalResult; exitCode: number }> {
   const { chunks } = params;
@@ -31,16 +31,25 @@ export async function greedyMinimize(params: {
       const candidateText = chunks.filter((_, j) => nextKeep[j]).map((c) => c.text).join("");
       if (!candidateText.trim()) continue;
 
-      const candidateEval = await evaluateTarget({
-        config: params.config,
-        promptText: candidateText,
-        promptHint: `drop:${chunks[i].id}`,
-        outDirAbs: params.outDirAbs,
-        targetSelector: params.targetSelector,
-        tracePath: params.tracePath,
-        budget: params.budget,
-        verbose: params.verbose,
-      });
+      let candidateEval: EvalResult;
+      try {
+        candidateEval = await evaluateTarget({
+          config: params.config,
+          promptText: candidateText,
+          promptHint: `drop:${chunks[i].id}`,
+          outDirAbs: params.outDirAbs,
+          targetSelector: params.targetSelector,
+          tracePath: params.tracePath,
+          budget: params.budget,
+          verbose: params.verbose,
+        });
+      } catch (err) {
+        const message = String((err as any)?.message || err);
+        if (message.startsWith("budget exceeded")) {
+          return { minimizedText: currentText, finalEval: currentEval, exitCode: 3 };
+        }
+        throw err;
+      }
 
       await writeJsonlAppend(params.tracePath, {
         at: new Date().toISOString(),
@@ -64,4 +73,3 @@ export async function greedyMinimize(params: {
   const exitCode = currentEval.isFail ? 0 : 3;
   return { minimizedText: currentText, finalEval: currentEval, exitCode };
 }
-
