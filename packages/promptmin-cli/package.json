@@ -1,13 +1,22 @@
 {
-  "name": "promptmin-cli",
-  "version": "0.0.0",
-  "private": true,
+  "name": "promptmin",
+  "version": "1.0.0",
+  "private": false,
   "type": "module",
   "bin": {
     "promptmin": "dist/cli.js"
   },
+  "files": [
+    "dist/**",
+    "README.md",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.js"
   },
