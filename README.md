@@ -1,5 +1,7 @@
 # 🧹 promptmin
 
+![GitHub release](https://img.shields.io/github/v/release/10fra/promptmin?sort=semver) ![npm](https://img.shields.io/npm/v/promptmin)
+
 Prompt minimizer for LLM evals: shrink a prompt to the smallest input that still reproduces a failure (delta debugging / ddmin).
 
 ## Why is this useful?
