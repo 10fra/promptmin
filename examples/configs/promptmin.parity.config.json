@@ -1,0 +1,14 @@
+{
+  "runner": {
+    "type": "local_command",
+    "command": ["python3", "examples/runners/run_parity.py"]
+  },
+  "tests": [
+    {
+      "id": "parity_odd_01",
+      "input": {},
+      "assert": { "type": "regex_match", "pattern": "OK" }
+    }
+  ]
+}
+
