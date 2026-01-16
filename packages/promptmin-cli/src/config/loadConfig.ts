@@ -1,7 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export type RunnerConfig = { type: "local_command"; command: string[] };
+export type LocalCommandRunnerConfig = { type: "local_command"; command: string[] };
+
+export type OpenAIResponsesRunnerConfig = {
+  type: "openai_responses";
+  model: string;
+  temperature?: number;
+  max_output_tokens?: number;
+  timeout_ms?: number;
+  base_url?: string;
+  api_key_env?: string;
+};
+
+export type RunnerConfig = LocalCommandRunnerConfig | OpenAIResponsesRunnerConfig;
 
 export type AssertConfig =
   | { type: "contains"; value: string }
@@ -52,6 +64,29 @@ function normalizeConfig(config: unknown): PromptminConfig {
     }
     return {
       runner: { type: "local_command", command },
+      tests: tests.map(normalizeTest),
+      prompt: normalizePrompt(prompt),
+    };
+  }
+
+  if (runnerType === "openai_responses") {
+    const model = String((runner as any).model || "");
+    if (!model) throw new Error("runner.model required for openai_responses");
+    const temperature = (runner as any).temperature;
+    const maxOutputTokens = (runner as any).max_output_tokens;
+    const timeoutMs = (runner as any).timeout_ms;
+    const baseUrl = (runner as any).base_url;
+    const apiKeyEnv = (runner as any).api_key_env;
+    return {
+      runner: {
+        type: "openai_responses",
+        model,
+        temperature: temperature === undefined ? undefined : Number(temperature),
+        max_output_tokens: maxOutputTokens === undefined ? undefined : Number(maxOutputTokens),
+        timeout_ms: timeoutMs === undefined ? undefined : Number(timeoutMs),
+        base_url: baseUrl === undefined ? undefined : String(baseUrl),
+        api_key_env: apiKeyEnv === undefined ? undefined : String(apiKeyEnv),
+      },
       tests: tests.map(normalizeTest),
       prompt: normalizePrompt(prompt),
     };

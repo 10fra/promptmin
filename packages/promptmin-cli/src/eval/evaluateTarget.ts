@@ -1,5 +1,6 @@
 import { PromptminConfig, TestConfig } from "../config/loadConfig.js";
 import { runLocalCommand } from "../runner/runLocalCommand.js";
+import { runOpenAIResponses } from "../runner/runOpenAIResponses.js";
 import { assertOutput } from "./assertOutput.js";
 import { hashText } from "../util/hash.js";
 import { writeJsonlAppend } from "../util/jsonl.js";
@@ -104,16 +105,12 @@ async function evalTestOnce(params: {
 }): Promise<{ ok: boolean; reason: string; cacheHit?: boolean }> {
   const { config, test, promptText } = params;
 
-  if (config.runner.type !== "local_command") {
-    return { ok: false, reason: `unsupported runner.type: ${config.runner.type}` };
-  }
-
   const cacheEnabled = params.cache?.enabled !== false;
   const cache = params.cache?.dirAbs ? ({ dirAbs: params.cache.dirAbs } satisfies DiskCache) : null;
   const cacheKey = hashText(
     [
-      "runner=local_command",
-      `command=${config.runner.command.join("\u0000")}`,
+      `runner=${config.runner.type}`,
+      runnerKeyParts(config.runner),
       `prompt=${hashText(promptText)}`,
       `test_id=${test.id}`,
       `test_input=${JSON.stringify(test.input)}`,
@@ -134,8 +131,8 @@ async function evalTestOnce(params: {
   }
 
   consumeRun(params.budget);
-  const output = await runLocalCommand({
-    command: config.runner.command,
+  const output = await runRunner({
+    config,
     promptText,
     promptFile: params.promptFile,
     test,
@@ -189,6 +186,51 @@ async function evalTestStable(params: {
   const reasonBase = firstFailureReason || "ok";
   const reason = `${reasonBase} (failures=${failures}/${trials}, mode=${stability.mode}${stability.mode === "kofn" ? ` k=${stability.k}` : ""})`;
   return { ok, reason, failures, trials, cacheHit: trials > 0 ? anyCacheHit : undefined };
+}
+
+async function runRunner(params: {
+  config: PromptminConfig;
+  promptText: string;
+  promptFile?: string;
+  test: TestConfig;
+  trialIndex: number;
+  trialCount: number;
+}): Promise<string> {
+  const runner = params.config.runner as any;
+  if (runner.type === "local_command") {
+    return await runLocalCommand({
+      command: runner.command,
+      promptText: params.promptText,
+      promptFile: params.promptFile,
+      test: params.test,
+      trialIndex: params.trialIndex,
+      trialCount: params.trialCount,
+    });
+  }
+  if (runner.type === "openai_responses") {
+    return await runOpenAIResponses({
+      runner,
+      promptText: params.promptText,
+      test: params.test,
+      trialIndex: params.trialIndex,
+      trialCount: params.trialCount,
+    });
+  }
+  throw new Error(`unsupported runner.type: ${String(runner.type)}`);
+}
+
+function runnerKeyParts(runner: any): string {
+  if (runner.type === "local_command") return `command=${runner.command.join("\u0000")}`;
+  if (runner.type === "openai_responses") {
+    return [
+      `model=${runner.model}`,
+      `temperature=${runner.temperature ?? 0}`,
+      `max_output_tokens=${runner.max_output_tokens ?? 800}`,
+      `timeout_ms=${runner.timeout_ms ?? 60000}`,
+      `base_url=${runner.base_url ?? "https://api.openai.com/v1"}`,
+    ].join("\n");
+  }
+  return `unknown_runner=${String(runner.type)}`;
 }
 
 function parseTarget(selector: string):
