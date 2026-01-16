@@ -74,6 +74,17 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
   }
 
   if (!baselineEval.isFail) {
+    await writeMetaJson({
+      outDirAbs,
+      args,
+      configHash,
+      baselineHash,
+      minimizedHash: baselineHash,
+      exitCode: 2,
+      startedAt,
+      budgetUsed: budget.runsUsed,
+      runnerType: config.runner.type,
+    });
     await writeReportMarkdown({
       outDirAbs,
       args,
@@ -135,6 +146,18 @@ export async function minimizeCommand(argv: string[]): Promise<number> {
     startedAt,
     budgetUsed: budget.runsUsed,
     bestEffortReason: result.reason,
+  });
+
+  await writeMetaJson({
+    outDirAbs,
+    args,
+    configHash,
+    baselineHash,
+    minimizedHash: hashText(result.minimizedText),
+    exitCode: result.exitCode,
+    startedAt,
+    budgetUsed: budget.runsUsed,
+    runnerType: config.runner.type,
   });
 
   if (args.json) {
@@ -302,6 +325,19 @@ async function handleFatalMinimizeError(params: {
   const baselineEval =
     params.baselineEval ?? ({ isFail: false, failingTests: [{ id: "(error)", reason: message }], totalRuns: 0 } as EvalResult);
 
+  await writeMetaJson({
+    outDirAbs: params.outDirAbs,
+    args: params.args,
+    configHash: "(unknown)",
+    baselineHash: params.baselineHash,
+    minimizedHash: params.baselineHash,
+    exitCode,
+    startedAt: params.startedAt,
+    budgetUsed: undefined,
+    runnerType: params.config.runner.type,
+    fatalError: message,
+  });
+
   await writeReportMarkdown({
     outDirAbs: params.outDirAbs,
     args: params.args,
@@ -318,4 +354,49 @@ async function handleFatalMinimizeError(params: {
   });
   process.stderr.write(message + "\n");
   return exitCode;
+}
+
+async function writeMetaJson(params: {
+  outDirAbs: string;
+  args: Args;
+  configHash: string;
+  baselineHash: string;
+  minimizedHash: string;
+  exitCode: number;
+  startedAt: number;
+  budgetUsed?: number;
+  runnerType: string;
+  fatalError?: string;
+}): Promise<void> {
+  const metaPath = path.join(params.outDirAbs, "meta.json");
+  const meta = {
+    created_at: new Date().toISOString(),
+    node: process.version,
+    platform: process.platform,
+    runner: params.runnerType,
+    exit_code: params.exitCode,
+    args: {
+      prompt: params.args.promptPath,
+      config: params.args.configPath,
+      out: params.args.outDir,
+      target: params.args.target,
+      strategy: params.args.strategy,
+      granularity: params.args.granularity,
+      budget_runs: params.args.budgetRuns,
+      max_minutes: params.args.maxMinutes,
+      cache: params.args.cache,
+      cache_dir: params.args.cacheDir,
+    },
+    hashes: {
+      config: params.configHash,
+      baseline_prompt: params.baselineHash,
+      minimized_prompt: params.minimizedHash,
+    },
+    budget: {
+      runs_used: params.budgetUsed ?? null,
+      max_runs: params.args.budgetRuns,
+    },
+    fatal_error: params.fatalError ?? null,
+  };
+  await writeFileAtomic(metaPath, JSON.stringify(meta, null, 2) + "\n");
 }
