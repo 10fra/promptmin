@@ -149,3 +149,53 @@ test("exit 4 on runner error", async () => {
   assert.ok(meta.fatal_error);
   assert.ok(meta.target_result);
 });
+
+test("exit 3 when --confirm-final does not reproduce", async () => {
+  const { repoRoot, cliPath } = cliInfo();
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "promptmin-confirm-final-"));
+  const promptPath = path.join(tmp, "prompt.txt");
+  const configPath = path.join(tmp, "config.json");
+  const outDir = path.join(tmp, "out");
+
+  await fs.writeFile(promptPath, "BAD_TOKEN\n", "utf8");
+  const python =
+    "import os; i=int(os.environ.get('PROMPTMIN_TRIAL_INDEX','0')); bad=('BAD_TOKEN' in os.environ.get('PROMPT_TEXT','')); print('BAD' if (bad and i==0) else 'OK')";
+  await writeJson(configPath, {
+    runner: { type: "local_command", command: ["python3", "-c", python] },
+    tests: [{ id: "t1", input: {}, assert: { type: "regex_not_match", pattern: "BAD" } }],
+  });
+
+  const res = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      "minimize",
+      "--prompt",
+      promptPath,
+      "--config",
+      configPath,
+      "--out",
+      outDir,
+      "--target",
+      "test:t1",
+      "--strategy",
+      "ddmin",
+      "--granularity",
+      "lines",
+      "--budget-runs",
+      "20",
+      "--stability-mode",
+      "off",
+      "--confirm-final",
+      "--cache",
+      "off",
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+  assert.equal(res.status, 3);
+  const meta = JSON.parse(await fs.readFile(path.join(outDir, "meta.json"), "utf8"));
+  assert.equal(meta.exit_code, 3);
+  assert.equal(meta.best_effort_reason, "confirm-final failed");
+  const report = await fs.readFile(path.join(outDir, "report.md"), "utf8");
+  assert.match(report, /confirm-final failed/);
+});
