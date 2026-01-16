@@ -1,4 +1,5 @@
 import { OpenAIResponsesRunnerConfig, TestConfig } from "../config/loadConfig.js";
+import { extractPromptMessages } from "../prompt/roleBlocks.js";
 
 export async function runOpenAIResponses(params: {
   runner: OpenAIResponsesRunnerConfig;
@@ -17,12 +18,11 @@ export async function runOpenAIResponses(params: {
   const userInput =
     typeof (params.test.input as any)?.user === "string" ? String((params.test.input as any).user) : JSON.stringify(params.test.input);
 
+  const messages = extractPromptMessages(params.promptText).messages;
+
   const body: any = {
     model: params.runner.model,
-    input: [
-      { role: "system", content: params.promptText },
-      { role: "user", content: userInput },
-    ],
+    input: [...messages, { role: "user", content: userInput }],
     temperature: params.runner.temperature ?? 0,
     max_output_tokens: params.runner.max_output_tokens ?? 800,
     metadata: {
@@ -85,4 +85,3 @@ function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max) + "...";
 }
-

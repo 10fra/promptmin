@@ -1,6 +1,7 @@
 import { Chunk } from "../minimize/greedyMinimize.js";
 import { hashText } from "../util/hash.js";
 import { PreserveSelector } from "../config/loadConfig.js";
+import { chunkRoleBlocks } from "./roleBlocks.js";
 
 export function chunkPrompt(
   promptText: string,
@@ -25,6 +26,15 @@ function chunkLines(text: string): Chunk[] {
 }
 
 function chunkMarkdownSections(text: string): Chunk[] {
+  const roleBlocks = chunkRoleBlocks(text);
+  if (roleBlocks) {
+    return roleBlocks.map((b, idx) => ({
+      id: `R${idx + 1}-${hashText(b.raw).slice(0, 8)}`,
+      text: b.raw,
+      preserve: hasKeepTag(b.raw),
+    }));
+  }
+
   const lines = splitLinesKeepEnds(text);
   const sections: Chunk[] = [];
   let current: string[] = [];

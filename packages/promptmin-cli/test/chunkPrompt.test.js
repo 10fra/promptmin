@@ -19,6 +19,13 @@ test("chunkPrompt sections ignore headings in code fences", () => {
   assert.equal(chunks.length, 2);
 });
 
+test("chunkPrompt sections split role blocks", () => {
+  const text = "system: |\n  a\nuser: |\n  b\n";
+  const chunks = chunkPrompt(text, "sections");
+  assert.equal(chunks.length, 2);
+  assert.equal(chunks.map((c) => c.text).join(""), text);
+});
+
 test("chunkPrompt honors config preserve heading selector", () => {
   const chunks = chunkPrompt("# Safety\nx\n\n# Other\ny\n", "sections", {
     preserve: [{ type: "heading", value: "Safety" }],
