@@ -10,6 +10,7 @@ export function chunkPrompt(
   const g = granularity || "blocks";
   const preserve = options?.preserve || [];
   if (g === "lines") return applyPreserve(chunkLines(promptText), preserve, "lines");
+  if (g === "sentences") return applyPreserve(chunkSentences(promptText), preserve, "lines");
   if (g === "sections") return applyPreserve(chunkMarkdownSections(promptText), preserve, "sections");
   return applyPreserve(chunkMarkdownBlocks(promptText), preserve, "blocks");
 }
@@ -156,6 +157,52 @@ function chunkMarkdownBlocks(text: string): Chunk[] {
   }
 
   return blocks;
+}
+
+function chunkSentences(text: string): Chunk[] {
+  const out: Chunk[] = [];
+  let i = 0;
+  let current = "";
+  let inFence: { marker: "```" | "~~~" } | null = null;
+
+  while (i < text.length) {
+    // Fence detection on line boundaries
+    if (i === 0 || text[i - 1] === "\n") {
+      const lineEnd = text.indexOf("\n", i);
+      const line = lineEnd === -1 ? text.slice(i) : text.slice(i, lineEnd);
+      const fence = parseFenceMarker(line);
+      if (fence) {
+        if (inFence && inFence.marker === fence.marker) inFence = null;
+        else if (!inFence) inFence = { marker: fence.marker };
+      }
+    }
+
+    const ch = text[i];
+    current += ch;
+
+    if (!inFence && (ch === "." || ch === "!" || ch === "?")) {
+      // include trailing quotes/brackets
+      let j = i + 1;
+      while (j < text.length && /["')\]]/.test(text[j])) {
+        current += text[j];
+        j++;
+      }
+      // consume whitespace after terminator
+      while (j < text.length && /\s/.test(text[j])) {
+        current += text[j];
+        j++;
+      }
+      out.push({ id: `T${out.length + 1}-${hashText(current).slice(0, 8)}`, text: current, preserve: hasKeepTag(current) });
+      current = "";
+      i = j;
+      continue;
+    }
+
+    i++;
+  }
+
+  if (current.length) out.push({ id: `T${out.length + 1}-${hashText(current).slice(0, 8)}`, text: current, preserve: hasKeepTag(current) });
+  return out;
 }
 
 function splitLinesKeepEnds(text: string): string[] {

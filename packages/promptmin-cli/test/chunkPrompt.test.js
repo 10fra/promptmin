@@ -33,3 +33,10 @@ test("chunkPrompt honors config preserve regex selector", () => {
   });
   assert.equal(chunks.some((c) => c.preserve), true);
 });
+
+test("chunkPrompt sentences preserves exact join", () => {
+  const text = "One. Two! Three?\n";
+  const chunks = chunkPrompt(text, "sentences");
+  assert.equal(chunks.map((c) => c.text).join(""), text);
+  assert.equal(chunks.length, 3);
+});

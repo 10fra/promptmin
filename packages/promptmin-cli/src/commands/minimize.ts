@@ -190,7 +190,7 @@ function parseArgs(argv: string[]): Args {
           "",
           "Options:",
           "  --strategy <ddmin|greedy>     default: ddmin",
-          "  --granularity <sections|blocks|lines>   default: blocks",
+          "  --granularity <sections|blocks|sentences|lines>   default: blocks",
           "  --budget-runs <int>           default: 200",
           "  --max-minutes <int>           default: 20",
           "  --cache <on|off>              default: on",
@@ -273,10 +273,11 @@ async function minimizeWithStrategy(params: {
   return { minimizedText: currentText, finalEval: currentEval, exitCode: currentEval.isFail ? 0 : 3 };
 }
 
-function levelsUpTo(granularity: string): Array<"sections" | "blocks" | "lines"> {
+function levelsUpTo(granularity: string): Array<"sections" | "blocks" | "sentences" | "lines"> {
   const g = granularity || "blocks";
   if (g === "sections") return ["sections"];
   if (g === "blocks") return ["sections", "blocks"];
+  if (g === "sentences") return ["sections", "blocks", "sentences"];
   if (g === "lines") return ["sections", "blocks", "lines"];
   throw new Error(`unsupported --granularity: ${granularity}`);
 }

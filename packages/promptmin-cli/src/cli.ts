@@ -29,7 +29,7 @@ function helpText(): string {
     "  --out <dir>                    default: .promptmin/out",
     "  --target <suite:any|suite:all|test:<id>>",
     "  --strategy <ddmin|greedy>      default: ddmin",
-    "  --granularity <sections|blocks|lines>   default: blocks",
+    "  --granularity <sections|blocks|sentences|lines>   default: blocks",
     "  --budget-runs <int>            default: 200",
     "  --max-minutes <int>            default: 20",
     "  --cache <on|off>               default: on",
